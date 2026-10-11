@@ -4,8 +4,8 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.utils import executor
 
 # Siz bergan ma'lumotlar asosida sozlamalar
-API_TOKEN = "Sizning_Bot_Tokeningiz"  # Bot tokeningizni yozasiz
-CHANNEL_USERNAME = "@Sizning_Kanal_Linkangiz"  # Majburiy obuna kanalingiz
+API_TOKEN = "8885376330:AAH-czdsIj-kNyOyAx_iYL39-mOIHh2DAt0"  # Bot tokeningizni yozasiz
+CHANNEL_USERNAME = "@Kitobhoi_elektroni"  # Majburiy obuna kanalingiz
 
 # Logging sozlamasi
 logging.basicConfig(level=logging.INFO)
