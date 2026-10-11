@@ -2,7 +2,7 @@ import os
 import telebot
 from telebot import types
 
-TOKEN = "8615719131:AAG1nVSZDIG1YTj7nkzmUMQKlinra93DWfg"
+TOKEN = "8885376330:AAH-czdsIj-kNyOyAx_iYL39-mOIHh2DAt0"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
 
 bot = telebot.TeleBot(TOKEN)
