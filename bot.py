@@ -23,8 +23,8 @@ def webhook():
 def send_welcome(message):
     welcome_text = (
         "🎵 Хуш омадед ба боти тарона ва медиа!\n\n"
-        "🔗 Ба ман истинод аз YouTube, TikTok, Instagram ё мусиқа фиристед. "
-        "Ман видео, аудиои видео ва дар сурати имкон таронаи оригиналиро ба таври худкор меёбам!"
+        "🔗 Ба ман истинод аз YouTube, TikTok ё Instagram фиристед. "
+        "Ман видео ва аудиои онро ба таври худкор ба шумо мефиристам!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -35,7 +35,7 @@ def handle_link(message):
         bot.reply_to(message, "⚠️ Лутфан истиноди дуруст фиристед (YouTube, TikTok ё Instagram).")
         return
 
-    msg = bot.reply_to(message, "⏳ Боргирӣ ва ҷустуҷӯи тарона истодааст, лутфан интизор шавед...")
+    msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
         api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
@@ -44,54 +44,38 @@ def handle_link(message):
 
         video_url = None
         audio_url = None
-        song_title = None
 
         if "data" in data:
             res_data = data["data"]
             video_url = res_data.get("downloadUrl") or res_data.get("url") or res_data.get("video")
             audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
-            song_title = res_data.get("title") or res_data.get("song") or res_data.get("music_info")
         elif "result" in data:
             res_data = data["result"]
             video_url = res_data.get("url") or res_data.get("download") or res_data.get("video")
             audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
-            song_title = res_data.get("title") or res_data.get("song")
 
         sent_anything = False
 
-        # 1. Видеоро мефиристем
+        # 1. Агар алоҳида аудио линки бўлса, уни мефиристем
+        if audio_url:
+            try:
+                bot.send_audio(message.chat.id, audio_url, caption="🎵 Мусиқа/аудиои шумо!")
+                sent_anything = True
+            except:
+                pass
+
+        # 2. Видеоро мефиристем
         if video_url:
             try:
                 bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
                 sent_anything = True
-            except:
-                pass
-
-        # 2. Аудиои кӯтоҳи худи видеоро мефиристем
-        if audio_url:
-            try:
-                bot.send_audio(message.chat.id, audio_url, caption="🎵 Аудиои лаҳзавии видео!")
-                sent_anything = True
-            except:
-                pass
-        elif video_url:
-            try:
-                bot.send_audio(message.chat.id, video_url, caption="🎵 Аудиои ҷудошуда аз видео!")
-                sent_anything = True
-            except:
-                pass
-
-        # 3. Агар номи тарона маълум бошад ё YouTube сурат гирифта бошад, кӯшиш мекунем таронаи пурраро ёбем
-        if song_title and isinstance(song_title, str):
-            try:
-                search_api = f"https://kaiz-apis.gleeze.com/api/yts?search={song_title}"
-                search_res = requests.get(search_api, timeout=15).json()
-                # Агар натиҷа мавжуд бошад, линки аудиои пурраро мефиристем
-                tracks = search_res.get("data") or search_res.get("result")
-                if tracks and len(tracks) > 0:
-                    full_audio_url = tracks[0].get("url") or tracks[0].get("download")
-                    if full_audio_url:
-                        bot.send_audio(message.chat.id, full_audio_url, caption=f"🎶 Таронаи оригинал ва пурра: {song_title}")
+                
+                # Агар алоҳида аудио бўлмаса, видеонинг ўзидан аудио ясаб юборамиз
+                if not audio_url:
+                    try:
+                        bot.send_audio(message.chat.id, video_url, caption="🎵 Аудио аз видео!")
+                    except:
+                        pass
             except:
                 pass
 
