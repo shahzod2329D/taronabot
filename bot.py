@@ -7,20 +7,12 @@ import requests
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
 
-bot = telebot.TeleBot(TOKEN, threaded=False)
+bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot is running perfectly!"
-
-# Вебхук орқали Telegram'дан келаётган хабарларни қабул қилиш
-@app.route(f'/{TOKEN}', methods=['POST'])
-def webhook():
-    json_string = request.get_data().decode('utf-8')
-    update = telebot.types.Update.de_json(json_string)
-    bot.process_new_updates([update])
-    return "!", 200
 
 def is_subscribed(user_id):
     try:
@@ -109,17 +101,15 @@ def handle_link(message):
     except Exception as e:
         bot.edit_message_text(
             "❌ Хатогӣ рух дод. Лутфан баъдтар бори дигар кӯшиш кунед.",
-            chat.id=message.chat.id,
+            chat_id=message.chat.id,
             message_id=msg.message_id
         )
 
 if __name__ == "__main__":
-    # Вебхукни автоматик улаш учун render URL'ни оламиз
-    RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
-    if RENDER_URL:
-        bot.remove_webhook()
-        bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
-        print("🔗 Webhook бо муваффақият фаъол шуд!")
-
     port = int(os.environ.get("PORT", 10000))
+    print("🎵 Бот ба кор даромад...")
+    
+    import threading
+    threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    
     app.run(host="0.0.0.0", port=port)
