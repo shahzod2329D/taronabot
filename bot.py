@@ -4,7 +4,7 @@ from telebot import types
 from flask import Flask, request
 import requests
 
-TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
+TOKEN = "8885376330:AAH-czdsIj-kNyOyAx_iYL39-mOIHh2DAt0"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
 
 bot = telebot.TeleBot(TOKEN)
@@ -14,7 +14,7 @@ app = Flask(__name__)
 def home():
     return "Bot is running!"
 
-# Санҷиши обуна танҳо ба канали шумо (@Kitobhoi_elektroni)
+# Санҷиши обуна ба канал
 def is_subscribed(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -68,7 +68,6 @@ def callback_check(call):
 def handle_link(message):
     user_id = message.from_user.id
 
-    # Такрорӣ санҷиши обуна ҳангоми фиристодани линк
     if not is_subscribed(user_id):
         send_welcome(message)
         return
@@ -81,25 +80,26 @@ def handle_link(message):
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        # Истифодаи API барои гирифтани медиа
-        api_url = f"https://apis.davidcyriltech.my.id/download?url={url}"
+        # Истифодаи API муқобил ва барқарорро иҷро мекунем
+        api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
         response = requests.get(api_url, timeout=30)
         data = response.json()
 
-        if data.get("status") == 200 or "result" in data:
-            result = data.get("result", {})
-            video_url = result.get("download_url") or result.get("video") or result.get("link")
-            
-            if video_url:
-                bot.send_video(message.chat.id, video_url, caption="✅ Марҳамат, видеои шумо!")
-                bot.delete_message(message.chat.id, msg.message_id)
-                return
+        video_url = None
+        if "data" in data:
+            video_url = data["data"].get("downloadUrl") or data["data"].get("url")
+        elif "result" in data:
+            video_url = data["result"].get("url") or data["result"].get("download")
 
-        bot.edit_message_text(
-            "❌ Истинодро кушода натавонист. Лутфан истиноди дигар санҷед.",
-            chat_id=message.chat.id,
-            message_id=msg.message_id
-        )
+        if video_url:
+            bot.send_video(message.chat.id, video_url, caption="✅ Марҳамат, видеои шумо!")
+            bot.delete_message(message.chat.id, msg.message_id)
+        else:
+            bot.edit_message_text(
+                "❌ Истинод боргирӣ нашуд. Лутфан истиноди дигар ё TikTok/YouTube санҷед.",
+                chat_id=message.chat.id,
+                message_id=msg.message_id
+            )
 
     except Exception as e:
         bot.edit_message_text(
