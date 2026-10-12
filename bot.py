@@ -2,6 +2,7 @@ import os
 import telebot
 from telebot import types
 from flask import Flask, request
+import yt_dlp
 
 TOKEN = "8885376330:AAH-czdsIj-kNyOyAx_iYL39-mOIHh2DAt0"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
@@ -9,7 +10,6 @@ CHANNEL_USERNAME = "@Kitobhoi_elektroni"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
-# Render uchun soxta veb-sahifa (port talabini qondirish uchun)
 @app.route('/')
 def home():
     return "Bot is running!"
@@ -46,7 +46,7 @@ def send_welcome(message):
     welcome_text = (
         "🎵 Хуш омадед ба боти тарона ва медиа!\n\n"
         "🔗 Ба ман линки видео аз YouTube, TikTok ё Instagram фиристед. "
-        "Ман видео ва аудиои онро ба шумо меёбам ва мефиристам!"
+        "Ман медиаро мекашам ва ба шумо мефиристам!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -72,20 +72,49 @@ def handle_link(message):
         send_welcome(message)
         return
 
-    url = message.text
-    if "http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url or "instagram.com" in url:
-        bot.reply_to(message, f"✅ Линки қабул шуд:\n`{url}`\n\n🎬 Видео ва 🎵 аудио тайёр шуда истодааст...", parse_mode="Markdown")
-    else:
-        bot.reply_to(message, "⚠️ Лутфан линки дурусти видеоро фиристед (масалан, линки YouTube, TikTok ё Instagram).")
+    url = message.text.strip()
+    if not ("http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url or "instagram.com" in url):
+        bot.reply_to(message, "⚠️ Лутфан линки дурусти видеоро фиристед (YouTube, TikTok ё Instagram).")
+        return
+
+    msg = bot.reply_to(message, "⏳ Видео боргирӣ шуда истодааст, лутфан интизор шавед...")
+
+    try:
+        # yt-dlp орқали видеони юклаб олиш созламалари
+        ydl_opts = {
+            'format': 'best',
+            'outtmpl': 'downloads/%(id)s.%(ext)s',
+            'max_filesize': 50 * 1024 * 1024, # 50MB лимит (Telegram ботлар учун)
+        }
+
+        os.makedirs("downloads", exist_ok=True)
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            file_path = ydl.prepare_filename(info)
+
+        # Видео файлни Telegram'га жўнатиш
+        with open(file_path, 'rb') as video_file:
+            bot.send_video(message.chat.id, video_file, caption="✅ Марҳамат, видеои шумо!")
+
+        bot.delete_message(message.chat.id, msg.message_id)
+
+        # Юклаб бўлингандан кейин файлни ўчириб ташлаш (память тўлиб қолмаслиги учун)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    except Exception as e:
+        bot.edit_message_text(
+            f"❌ Видеоро юклаб олиб نشд. Хатогӣ: Ҳаҷми файл калон ё линк нодуруст аст.",
+            chat_id=message.chat.id,
+            message_id=msg.message_id
+        )
 
 if __name__ == "__main__":
-    # Render avtomatik beradigan PORT ni aniqlaymiz
     port = int(os.environ.get("PORT", 10000))
-    print("🎵 Бот бо YouTube ва забони тожикӣ ба кор даромад...")
+    print("🎵 Бот ба кор даромад...")
     
-    # Botni ishga tushiramiz (pooling rejimida)
     import threading
     threading.Thread(target=bot.infinity_polling, daemon=True).start()
     
-    # Flask serverini portda ochib қўямиз (Render port talabini qondirish uchun)
     app.run(host="0.0.0.0", port=port)
