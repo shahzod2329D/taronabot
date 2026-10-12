@@ -1,7 +1,7 @@
 import os
 import telebot
 from flask import Flask, request
-import requests
+import yt_dlp
 
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
@@ -88,71 +88,66 @@ def handle_link(message):
 
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст...")
 
-    video_url = None
-    audio_url = None
+    video_path = f"video_{message.chat.id}.mp4"
+    audio_path = f"audio_{message.chat.id}.mp3"
 
     try:
-        # 1-умин усули API (Cobalt ё шубҳасиз ишончли манба)
-        api_url = f"https://co.wuk.sh/api/json"
-        headers = {"Accept": "application/json", "Content-Type": "application/json"}
-        body = {"url": url, "vQuality": "720"}
-        res = requests.post(api_url, json=body, headers=headers, timeout=20)
-        res_data = res.json()
+        # yt-dlp орқали видео ва аудиони тўғридан-тўғри юклаб оламиз
+        ydl_opts_video = {
+            'format': 'best[ext=mp4]/best',
+            'outtmpl': video_path,
+            'max_filesize': 50 * 1024 * 1024, # 50MB лимит
+        }
         
-        if res_data.get("status") == "stream" or res_data.get("status") == "redirect":
-            video_url = res_data.get("url")
-        elif res_data.get("status") == "picker":
-            picker_items = res_data.get("picker", [])
-            if picker_items:
-                video_url = picker_items[0].get("url")
-    except Exception as e:
-        print(f"Cobalt API xatosi: {e}")
+        with yt_dlp.YoutubeDL(ydl_opts_video) as ydl:
+            ydl.download([url])
 
-    # Агар биринчи API орқали топилмаса, захира API'ни ишлатамиз
-    if not video_url:
-        try:
-            backup_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
-            response = requests.get(backup_url, timeout=20).json()
-            if "data" in response and isinstance(response["data"], dict):
-                r = response["data"]
-                video_url = r.get("downloadUrl") or r.get("url") or r.get("video")
-                audio_url = r.get("audio") or r.get("music") or r.get("mp3")
-            elif "result" in response and isinstance(response["result"], dict):
-                r = response["result"]
-                video_url = r.get("url") or r.get("download") or r.get("video")
-                audio_url = r.get("audio") or r.get("music")
-        except Exception as e:
-            print(f"Backup API xatosi: {e}")
-
-    sent_anything = False
-
-    try:
-        if audio_url:
-            bot.send_audio(message.chat.id, audio_url, caption="🎵 Мусиқаи шумо!")
-            sent_anything = True
-    except:
-        pass
-
-    try:
-        if video_url:
-            bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
-            sent_anything = True
+        # Видеони юбориш
+        if os.path.exists(video_path):
+            with open(video_path, 'rb') as f:
+                bot.send_video(message.chat.id, f, caption="✅ Видеои шумо!")
             
-            if not audio_url:
-                try:
-                    bot.send_audio(message.chat.id, video_url, caption="🎵 Аудио аз видео!")
-                except:
-                    pass
-    except:
-        pass
+            # Видеодан аудио суғуриб юбориш ёки алоҳида аудио қилиш
+            try:
+                ydl_opts_audio = {
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                    'outtmpl': f"audio_{message.chat.id}",
+                }
+                # оддийроқ усулда видео файлини ўзидан аудио қилиб юборамиз
+                bot.send_audio(message.chat.id, open(video_path, 'rb'), caption="🎵 Аудио аз видео!")
+            except:
+                pass
 
-    try:
-        bot.delete_message(message.chat.id, msg.message_id)
-    except:
-        pass
+            os.remove(video_path)
+            try:
+                bot.delete_message(message.chat.id, msg.message_id)
+            except:
+                pass
+            return
 
-    if not sent_anything:
-        bot.reply_to(message, "❌ Мутаассифона, ин истинод бор карда нашуд ё сервер банд аст.")
+        bot.edit_message_text(
+            "❌ Мутаассифона, ин истинод бор карда нашуд.",
+            chat_id=message.chat.id,
+            message_id=msg.message_id
+        )
+
+    except Exception as e:
+        print(f"Xatolik: {e}")
+        try:
+            if os.path.exists(video_path):
+                os.remove(video_path)
+            bot.edit_message_text(
+                "❌ Хатогӣ рух дод. Истиноди дигар санҷед.",
+                chat_id=message.chat.id,
+                message_id=msg.message_id
+            )
+        except:
+            bot.reply_to(message, "❌ Хатогӣ рух дод.")
 
 if __name__ == "__main__":
     RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
