@@ -88,63 +88,71 @@ def handle_link(message):
 
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст...")
 
+    video_url = None
+    audio_url = None
+
     try:
-        api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
-        response = requests.get(api_url, timeout=30)
-        data = response.json()
-
-        video_url = None
-        audio_url = None
-
-        if "data" in data and isinstance(data["data"], dict):
-            res_data = data["data"]
-            video_url = res_data.get("downloadUrl") or res_data.get("url") or res_data.get("video")
-            audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
-        elif "result" in data and isinstance(data["result"], dict):
-            res_data = data["result"]
-            video_url = res_data.get("url") or res_data.get("download") or res_data.get("video")
-            audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
-
-        sent_anything = False
-
-        if audio_url:
-            try:
-                bot.send_audio(message.chat.id, audio_url, caption="🎵 Мусиқаи шумо!")
-                sent_anything = True
-            except:
-                pass
-
-        if video_url:
-            try:
-                bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
-                sent_anything = True
-                
-                if not audio_url:
-                    try:
-                        bot.send_audio(message.chat.id, video_url, caption="🎵 Аудио аз видео!")
-                    except:
-                        pass
-            except:
-                pass
-
-        try:
-            bot.delete_message(message.chat.id, msg.message_id)
-        except:
-            pass
-
-        if not sent_anything:
-            bot.reply_to(message, "❌ Мутаассифона, ин истинод бор карда нашуд.")
-
+        # 1-умин усули API (Cobalt ё шубҳасиз ишончли манба)
+        api_url = f"https://co.wuk.sh/api/json"
+        headers = {"Accept": "application/json", "Content-Type": "application/json"}
+        body = {"url": url, "vQuality": "720"}
+        res = requests.post(api_url, json=body, headers=headers, timeout=20)
+        res_data = res.json()
+        
+        if res_data.get("status") == "stream" or res_data.get("status") == "redirect":
+            video_url = res_data.get("url")
+        elif res_data.get("status") == "picker":
+            picker_items = res_data.get("picker", [])
+            if picker_items:
+                video_url = picker_items[0].get("url")
     except Exception as e:
-        print(f"Xatolik: {e}")
+        print(f"Cobalt API xatosi: {e}")
+
+    # Агар биринчи API орқали топилмаса, захира API'ни ишлатамиз
+    if not video_url:
         try:
-            bot.edit_message_text(
-                "❌ Хатогӣ рух дод. Лутфан истиноди дигар санҷед.",
-                chat_id=message.chat.id,
-                message_id=msg.message_id
-            )
-        except:
-            bot.reply_to(message, "❌ Хатогӣ рух дод.")
+            backup_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
+            response = requests.get(backup_url, timeout=20).json()
+            if "data" in response and isinstance(response["data"], dict):
+                r = response["data"]
+                video_url = r.get("downloadUrl") or r.get("url") or r.get("video")
+                audio_url = r.get("audio") or r.get("music") or r.get("mp3")
+            elif "result" in response and isinstance(response["result"], dict):
+                r = response["result"]
+                video_url = r.get("url") or r.get("download") or r.get("video")
+                audio_url = r.get("audio") or r.get("music")
+        except Exception as e:
+            print(f"Backup API xatosi: {e}")
+
+    sent_anything = False
+
+    try:
+        if audio_url:
+            bot.send_audio(message.chat.id, audio_url, caption="🎵 Мусиқаи шумо!")
+            sent_anything = True
+    except:
+        pass
+
+    try:
+        if video_url:
+            bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
+            sent_anything = True
+            
+            if not audio_url:
+                try:
+                    bot.send_audio(message.chat.id, video_url, caption="🎵 Аудио аз видео!")
+                except:
+                    pass
+    except:
+        pass
+
+    try:
+        bot.delete_message(message.chat.id, msg.message_id)
+    except:
+        pass
+
+    if not sent_anything:
+        bot.reply_to(message, "❌ Мутаассифона, ин истинод бор карда нашуд ё сервер банд аст.")
 
 if __name__ == "__main__":
     RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
