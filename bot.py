@@ -14,7 +14,7 @@ app = Flask(__name__)
 def home():
     return "Bot is running!"
 
-# Санҷиши обуна ба канал
+# Санҷиши обуна танҳо ба канали шумо (@Kitobhoi_elektroni)
 def is_subscribed(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -68,6 +68,7 @@ def callback_check(call):
 def handle_link(message):
     user_id = message.from_user.id
 
+    # Такрорӣ санҷиши обуна ҳангоми фиристодани линк
     if not is_subscribed(user_id):
         send_welcome(message)
         return
@@ -80,7 +81,7 @@ def handle_link(message):
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        # Озод ва оммавий медиа юклаш API орқали линкни оламиз
+        # Истифодаи API барои гирифтани медиа
         api_url = f"https://apis.davidcyriltech.my.id/download?url={url}"
         response = requests.get(api_url, timeout=30)
         data = response.json()
@@ -94,9 +95,8 @@ def handle_link(message):
                 bot.delete_message(message.chat.id, msg.message_id)
                 return
 
-        # Агар API орқали чиқмаса, муқобил оддий усул ёки хабар
         bot.edit_message_text(
-            "❌ Мутахассиси боргирӣ ин истинодро кушода натавонист. Лутфан истиноди дигар санҷед.",
+            "❌ Истинодро кушода натавонист. Лутфан истиноди дигар санҷед.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
