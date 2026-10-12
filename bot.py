@@ -1,7 +1,7 @@
 import os
 import telebot
 from flask import Flask, request
-import requests
+import yt_dlp
 
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 
@@ -38,44 +38,35 @@ def handle_link(message):
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        # Истифодаи API'и нав ва барқарортар
-        api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
-        response = requests.get(api_url, timeout=30)
-        data = response.json()
+        os.makedirs("downloads", exist_ok=True)
+        
+        ydl_opts = {
+            'format': 'best',
+            'outtmpl': 'downloads/%(id)s.%(ext)s',
+            'max_filesize': 50 * 1024 * 1024,
+            'noplaylist': True,
+        }
 
-        video_url = None
-        audio_url = None
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            file_path = ydl.prepare_filename(info)
 
-        if "data" in data:
-            res_data = data["data"]
-            video_url = res_data.get("downloadUrl") or res_data.get("url") or res_data.get("video")
-            audio_url = res_data.get("audio") or res_data.get("music")
-        elif "result" in data:
-            res_data = data["result"]
-            video_url = res_data.get("url") or res_data.get("download") or res_data.get("video")
-            audio_url = res_data.get("audio") or res_data.get("music")
+        # Файлни юбориш
+        with open(file_path, 'rb') as f:
+            if file_path.endswith(('.mp3', '.m4a', '.wav', '.opus')):
+                bot.send_audio(message.chat.id, f, caption="🎵 Мусиқаи шумо!")
+            else:
+                bot.send_video(message.chat.id, f, caption="✅ Видеои шумо!")
 
-        # Агар видео топилса
-        if video_url:
-            bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
+        bot.delete_message(message.chat.id, msg.message_id)
 
-        # Агар алоҳида аудио/мусиқа топилса
-        if audio_url:
-            bot.send_audio(message.chat.id, audio_url, caption="🎵 Аудио/Мусиқаи шумо!")
-
-        if video_url or audio_url:
-            bot.delete_message(message.chat.id, msg.message_id)
-            return
-
-        bot.edit_message_text(
-            "❌ Боргирӣ карда нашуд. Истинод амал намекунад ё дастгирӣ намешавад.",
-            chat_id=message.chat.id,
-            message_id=msg.message_id
-        )
+        # Юклаб бўлингач сервердан ўчириб ташлаймиз
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
     except Exception as e:
         bot.edit_message_text(
-            "❌ Хатогӣ рух дод. Лутфан баъдтар бори дигар кӯшиш кунед.",
+            "❌ Боргирӣ карда нашуд. Эҳтимол ҳаҷми файл калон аст ё истинод хатост.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
