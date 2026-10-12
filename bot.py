@@ -2,7 +2,7 @@ import os
 import telebot
 from telebot import types
 from flask import Flask, request
-import yt_dlp
+import requests
 
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
@@ -79,30 +79,29 @@ def handle_link(message):
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        ydl_opts = {
-            'format': 'best',
-            'outtmpl': 'downloads/%(id)s.%(ext)s',
-            'max_filesize': 50 * 1024 * 1024,
-            'noplaylist': True,
-        }
+        # Истифодаи махсус API хизмати универсалӣ барои гирифтани медиа
+        api_url = f"https://apis.davidcyriltech.my.id/download?url={url}"
+        response = requests.get(api_url, timeout=30)
+        data = response.json()
 
-        os.makedirs("downloads", exist_ok=True)
+        if data.get("status") == 200 or "result" in data:
+            result = data.get("result", {})
+            video_url = result.get("download_url") or result.get("video") or result.get("link")
+            
+            if video_url:
+                bot.send_video(message.chat.id, video_url, caption="✅ Марҳамат, видеои шумо!")
+                bot.delete_message(message.chat.id, msg.message_id)
+                return
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
-
-        with open(file_path, 'rb') as video_file:
-            bot.send_video(message.chat.id, video_file, caption="✅ Марҳамат, видеои шумо!")
-
-        bot.delete_message(message.chat.id, msg.message_id)
-
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        bot.edit_message_text(
+            "❌ Боргирӣ карда нашуд. Лутфан истиноди дигар санҷед.",
+            chat_id=message.chat.id,
+            message_id=msg.message_id
+        )
 
     except Exception as e:
         bot.edit_message_text(
-            "❌ Боргирӣ карда нашуд. Эҳтимол ҳаҷми видео калон аст ё истинод хатост.",
+            "❌ Хатогӣ рух дод. Лутфан баъдтар бори дигар кӯшиш кунед.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
