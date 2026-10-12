@@ -2,7 +2,7 @@ import os
 import telebot
 from telebot import types
 from flask import Flask, request
-import yt_dlp
+import requests
 
 TOKEN = "8885376330:AAH-czdsIj-kNyOyAx_iYL39-mOIHh2DAt0"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
@@ -80,37 +80,30 @@ def handle_link(message):
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        ydl_opts = {
-            'format': 'best',
-            'outtmpl': 'downloads/%(id)s.%(ext)s',
-            'max_filesize': 50 * 1024 * 1024,
-            'noplaylist': True,
-        }
+        # Озод ва оммавий медиа юклаш API орқали линкни оламиз
+        api_url = f"https://apis.davidcyriltech.my.id/download?url={url}"
+        response = requests.get(api_url, timeout=30)
+        data = response.json()
 
-        os.makedirs("downloads", exist_ok=True)
-
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
+        if data.get("status") == 200 or "result" in data:
+            result = data.get("result", {})
+            video_url = result.get("download_url") or result.get("video") or result.get("link")
             
-            # Агар файл аудио бошад ё формат аудио табдил ёфта бошад
-            ext = info.get('ext', '')
+            if video_url:
+                bot.send_video(message.chat.id, video_url, caption="✅ Марҳамат, видеои шумо!")
+                bot.delete_message(message.chat.id, msg.message_id)
+                return
 
-        # Фиристодани файл вобаста ба намуди он
-        with open(file_path, 'rb') as f:
-            if ext in ['mp3', 'm4a', 'wav', 'aac']:
-                bot.send_audio(message.chat.id, f, caption="✅ Марҳамат, суруди шумо!")
-            else:
-                bot.send_video(message.chat.id, f, caption="✅ Марҳамат, видеои шумо!")
-
-        bot.delete_message(message.chat.id, msg.message_id)
-
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # Агар API орқали чиқмаса, муқобил оддий усул ёки хабар
+        bot.edit_message_text(
+            "❌ Мутахассиси боргирӣ ин истинодро кушода натавонист. Лутфан истиноди дигар санҷед.",
+            chat_id=message.chat.id,
+            message_id=msg.message_id
+        )
 
     except Exception as e:
         bot.edit_message_text(
-            f"❌ Боргирӣ карда нашуд. Эҳтимол истинод хато аст ё ҳаҷми файл калон аст.",
+            "❌ Хатогӣ рух дод. Лутфан баъдтар бори дигар кӯшиш кунед.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
