@@ -44,7 +44,7 @@ def send_welcome(message):
 
     welcome_text = (
         "🎵 Хуш омадед ба боти тарона ва медиа!\n\n"
-        "🔗 Ба ман истинод аз YouTube ё TikTok фиристед. "
+        "🔗 Ба ман истинод аз YouTube, TikTok ё Instagram фиристед. "
         "Ман видеои онро мекашам ва ба шумо мефиристам!"
     )
     bot.reply_to(message, welcome_text)
@@ -72,8 +72,8 @@ def handle_link(message):
         return
 
     url = message.text.strip()
-    if not ("http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url):
-        bot.reply_to(message, "⚠️ Лутфан истиноди дурусти YouTube ё TikTok фиристед.")
+    if not ("http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url or "instagram.com" in url):
+        bot.reply_to(message, "⚠️ Лутфан истиноди дуруст фиристед (YouTube, TikTok ё Instagram).")
         return
 
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
