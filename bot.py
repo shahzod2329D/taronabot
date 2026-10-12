@@ -12,7 +12,6 @@ app = Flask(__name__)
 def home():
     return "Bot is running perfectly!"
 
-# Вебхук орқали хабарларни қабул қилиш (409 конфликтни юз фоиз йўқотади)
 @app.route(f'/{TOKEN}', methods=['POST'])
 def webhook():
     json_string = request.get_data().decode('utf-8')
@@ -39,29 +38,37 @@ def handle_link(message):
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        api_url = f"https://apis.davidcyriltech.my.id/download?url={url}"
+        # Истифодаи API'и нав ва барқарортар
+        api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
         response = requests.get(api_url, timeout=30)
         data = response.json()
 
-        if data.get("status") == 200 or "result" in data:
-            result = data.get("result", {})
-            video_url = result.get("download_url") or result.get("video") or result.get("link")
-            audio_url = result.get("audio") or result.get("music")
-            
-            # Агар видео мавжуд бўлса
-            if video_url:
-                bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
+        video_url = None
+        audio_url = None
 
-            # Агар аудио ёки мусиқа мавжуд бўлса
-            if audio_url:
-                bot.send_audio(message.chat.id, audio_url, caption="🎵 Аудио/Мусиқаи шумо!")
+        if "data" in data:
+            res_data = data["data"]
+            video_url = res_data.get("downloadUrl") or res_data.get("url") or res_data.get("video")
+            audio_url = res_data.get("audio") or res_data.get("music")
+        elif "result" in data:
+            res_data = data["result"]
+            video_url = res_data.get("url") or res_data.get("download") or res_data.get("video")
+            audio_url = res_data.get("audio") or res_data.get("music")
 
-            if video_url or audio_url:
-                bot.delete_message(message.chat.id, msg.message_id)
-                return
+        # Агар видео топилса
+        if video_url:
+            bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
+
+        # Агар алоҳида аудио/мусиқа топилса
+        if audio_url:
+            bot.send_audio(message.chat.id, audio_url, caption="🎵 Аудио/Мусиқаи шумо!")
+
+        if video_url or audio_url:
+            bot.delete_message(message.chat.id, msg.message_id)
+            return
 
         bot.edit_message_text(
-            "❌ Боргирӣ карда нашуд. Лутфан истиноди дигар санҷед.",
+            "❌ Боргирӣ карда нашуд. Истинод амал намекунад ё дастгирӣ намешавад.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
@@ -74,7 +81,6 @@ def handle_link(message):
         )
 
 if __name__ == "__main__":
-    # Render URL орқали вебхукни автоматик улаймиз
     RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
     if RENDER_URL:
         bot.remove_webhook()
