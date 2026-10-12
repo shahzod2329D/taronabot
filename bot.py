@@ -1,7 +1,7 @@
 import os
 import telebot
 from flask import Flask, request
-import yt_dlp
+import requests
 
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
@@ -52,7 +52,7 @@ def send_welcome(message):
     welcome_text = (
         "🎵 Хуш омадед!\n\n"
         "🔗 Истиноди YouTube, TikTok ё Instagram фиристед. "
-        "Ман видео ва аудиои онро ба таври худкор мефиристам!"
+        "Ман видео ва аудиои онро ба таври худкор ба шумо мефиристам!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -88,66 +88,60 @@ def handle_link(message):
 
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст...")
 
-    video_path = f"video_{message.chat.id}.mp4"
-    audio_path = f"audio_{message.chat.id}.mp3"
+    video_url = None
+    audio_url = None
 
     try:
-        # yt-dlp орқали видео ва аудиони тўғридан-тўғри юклаб оламиз
-        ydl_opts_video = {
-            'format': 'best[ext=mp4]/best',
-            'outtmpl': video_path,
-            'max_filesize': 50 * 1024 * 1024, # 50MB лимит
-        }
+        # Янги ва ишончли лойиҳавий API манзили
+        api_url = f"https://api.tikmate.app/api/lookup?url={url}" if "tiktok" in url else f"https://deliriapi-jls8.onrender.com/download/all?url={url}"
         
-        with yt_dlp.YoutubeDL(ydl_opts_video) as ydl:
-            ydl.download([url])
-
-        # Видеони юбориш
-        if os.path.exists(video_path):
-            with open(video_path, 'rb') as f:
-                bot.send_video(message.chat.id, f, caption="✅ Видеои шумо!")
-            
-            # Видеодан аудио суғуриб юбориш ёки алоҳида аудио қилиш
-            try:
-                ydl_opts_audio = {
-                    'format': 'bestaudio/best',
-                    'postprocessors': [{
-                        'key': 'FFmpegExtractAudio',
-                        'preferredcodec': 'mp3',
-                        'preferredquality': '192',
-                    }],
-                    'outtmpl': f"audio_{message.chat.id}",
-                }
-                # оддийроқ усулда видео файлини ўзидан аудио қилиб юборамиз
-                bot.send_audio(message.chat.id, open(video_path, 'rb'), caption="🎵 Аудио аз видео!")
-            except:
-                pass
-
-            os.remove(video_path)
-            try:
-                bot.delete_message(message.chat.id, msg.message_id)
-            except:
-                pass
-            return
-
-        bot.edit_message_text(
-            "❌ Мутаассифона, ин истинод бор карда нашуд.",
-            chat_id=message.chat.id,
-            message_id=msg.message_id
-        )
-
+        # Агар TikTok бўлса махсус созлаймиз, бошқалар учун умумий юклагич
+        if "tiktok" in url:
+            r = requests.get(f"https://tikwm.com/api/?url={url}", timeout=20).json()
+            if "data" in r:
+                video_url = r["data"].get("play")
+                audio_url = r["data"].get("music")
+        else:
+            # YouTube / Instagram учун универсал API
+            r = requests.get(f"https://kaiz-apis.gleeze.com/api/downloader?url={url}", timeout=20).json()
+            if "data" in r and isinstance(r["data"], dict):
+                video_url = r["data"].get("downloadUrl") or r["data"].get("url") or r["data"].get("video")
+                audio_url = r["data"].get("audio") or r["data"].get("music") or r["data"].get("mp3")
+            elif "result" in r and isinstance(r["result"], dict):
+                video_url = r["result"].get("url") or r["result"].get("video")
+                audio_url = r["result"].get("audio") or r["result"].get("music")
     except Exception as e:
-        print(f"Xatolik: {e}")
-        try:
-            if os.path.exists(video_path):
-                os.remove(video_path)
-            bot.edit_message_text(
-                "❌ Хатогӣ рух дод. Истиноди дигар санҷед.",
-                chat_id=message.chat.id,
-                message_id=msg.message_id
-            )
-        except:
-            bot.reply_to(message, "❌ Хатогӣ рух дод.")
+        print(f"API Error: {e}")
+
+    sent_anything = False
+
+    try:
+        if audio_url:
+            bot.send_audio(message.chat.id, audio_url, caption="🎵 Мусиқаи шумо!")
+            sent_anything = True
+    except:
+        pass
+
+    try:
+        if video_url:
+            bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
+            sent_anything = True
+            
+            if not audio_url:
+                try:
+                    bot.send_audio(message.chat.id, video_url, caption="🎵 Аудио аз видео!")
+                except:
+                    pass
+    except:
+        pass
+
+    try:
+        bot.delete_message(message.chat.id, msg.message_id)
+    except:
+        pass
+
+    if not sent_anything:
+        bot.reply_to(message, "❌ Мутаассифона, ин истинод бор карда нашуд. Лутфан истиноди дигарро санҷед.")
 
 if __name__ == "__main__":
     RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
