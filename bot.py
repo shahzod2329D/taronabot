@@ -38,63 +38,66 @@ def handle_link(message):
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
+        # Истифодаи API'и муътамад
         api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
-        response = requests.get(api_url, timeout=30)
+        response = requests.get(api_url, timeout=25)
         data = response.json()
 
         video_url = None
         audio_url = None
 
-        if "data" in data:
+        if "data" in data and isinstance(data["data"], dict):
             res_data = data["data"]
             video_url = res_data.get("downloadUrl") or res_data.get("url") or res_data.get("video")
             audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
-        elif "result" in data:
+        elif "result" in data and isinstance(data["result"], dict):
             res_data = data["result"]
             video_url = res_data.get("url") or res_data.get("download") or res_data.get("video")
             audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
 
-        sent_anything = False
+        success = False
 
-        # 1. Агар алоҳида аудио линки бўлса, уни мефиристем
-        if audio_url:
-            try:
-                bot.send_audio(message.chat.id, audio_url, caption="🎵 Мусиқа/аудиои шумо!")
-                sent_anything = True
-            except:
-                pass
-
-        # 2. Видеоро мефиристем
+        # Видео юбориш
         if video_url:
             try:
                 bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
-                sent_anything = True
-                
-                # Агар алоҳида аудио бўлмаса, видеонинг ўзидан аудио ясаб юборамиз
-                if not audio_url:
-                    try:
-                        bot.send_audio(message.chat.id, video_url, caption="🎵 Аудио аз видео!")
-                    except:
-                        pass
+                success = True
+            except Exception as e:
+                print(f"Video yuborishda xato: {e}")
+
+        # Аудио юбориш (агар алоҳида бўлса ёки видеодан олиш мумкин бўлса)
+        if audio_url:
+            try:
+                bot.send_audio(message.chat.id, audio_url, caption="🎵 Мусиқа/аудиои шумо!")
+                success = True
+            except Exception as e:
+                print(f"Audio yuborishda xato: {e}")
+        elif video_url:
+            try:
+                bot.send_audio(message.chat.id, video_url, caption="🎵 Аудио аз видео!")
+                success = True
             except:
                 pass
 
-        if sent_anything:
+        # Хабарни ўчириш ёки янгилаш
+        try:
             bot.delete_message(message.chat.id, msg.message_id)
-            return
+        except:
+            pass
 
-        bot.edit_message_text(
-            "❌ Боргирӣ карда нашуд. Лутфан истиноди дигар санҷед.",
-            chat_id=message.chat.id,
-            message_id=msg.message_id
-        )
+        if not success:
+            bot.reply_to(message, "❌ Мутаассифона, ин истинод бор карда нашуд ёки дастгирӣ намешавад.")
 
     except Exception as e:
-        bot.edit_message_text(
-            "❌ Хатогӣ рух дод. Лутфан баъдтар бори дигар кӯшиш кунед.",
-            chat_id=message.chat.id,
-            message_id=msg.message_id
-        )
+        print(f"Umumiy xato: {e}")
+        try:
+            bot.edit_message_text(
+                "❌ Айни замон бор карда нашуд. Лутфан истиноди дигарро санҷед.",
+                chat_id=message.chat.id,
+                message_id=msg.message_id
+            )
+        except:
+            bot.reply_to(message, "❌ Хатогӣ рух дод.")
 
 if __name__ == "__main__":
     RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
