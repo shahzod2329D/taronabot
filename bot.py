@@ -1,7 +1,7 @@
 import os
 import telebot
 from flask import Flask, request
-import yt_dlp
+import requests
 
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 
@@ -22,9 +22,9 @@ def webhook():
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     welcome_text = (
-        "🎵 Хуш омадед ба боти тарона ва медиа!\n\n"
-        "🔗 Ба ман истинод аз YouTube, TikTok ё Instagram фиристед. "
-        "Ман видео ва аудиои онро ба таври худкор ба шумо мефиристам!"
+        "🎵 Salom! Botimizga xush kelibsiz.\n\n"
+        "🔗 Menga YouTube, TikTok, Instagram yoki musiqa havolasini yuboring. "
+        "Men uning ham videosini, ham audiosini (musiqasini) avtomatik ravishda topib beraman!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -32,41 +32,66 @@ def send_welcome(message):
 def handle_link(message):
     url = message.text.strip()
     if not ("http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url or "instagram.com" in url):
-        bot.reply_to(message, "⚠️ Лутфан истиноди дуруст фиристед (YouTube, TikTok ё Instagram).")
+        bot.reply_to(message, "⚠️ Iltimos, to'g'ri havola yuboring (YouTube, TikTok yoki Instagram).")
         return
 
-    msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
+    msg = bot.reply_to(message, "⏳ Qidirilmoqda va yuklab olinmoqda, iltimos kuting...")
 
     try:
-        os.makedirs("downloads", exist_ok=True)
-        
-        ydl_opts = {
-            'format': 'best',
-            'outtmpl': 'downloads/%(id)s.%(ext)s',
-            'max_filesize': 50 * 1024 * 1024,
-            'noplaylist': True,
-        }
+        api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
+        response = requests.get(api_url, timeout=30)
+        data = response.json()
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            file_path = ydl.prepare_filename(info)
+        video_url = None
+        audio_url = None
 
-        # Файлни юбориш
-        with open(file_path, 'rb') as f:
-            if file_path.endswith(('.mp3', '.m4a', '.wav', '.opus')):
-                bot.send_audio(message.chat.id, f, caption="🎵 Мусиқаи шумо!")
-            else:
-                bot.send_video(message.chat.id, f, caption="✅ Видеои шумо!")
+        if "data" in data:
+            res_data = data["data"]
+            video_url = res_data.get("downloadUrl") or res_data.get("url") or res_data.get("video")
+            audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
+        elif "result" in data:
+            res_data = data["result"]
+            video_url = res_data.get("url") or res_data.get("download") or res_data.get("video")
+            audio_url = res_data.get("audio") or res_data.get("music") or res_data.get("mp3") or res_data.get("dl")
 
-        bot.delete_message(message.chat.id, msg.message_id)
+        sent_anything = False
 
-        # Юклаб бўлингач сервердан ўчириб ташлаймиз
-        if os.path.exists(file_path):
-            os.remove(file_path)
+        # 1. Agar alohida audio/musiqa havolasi topilsa, uni musiqa sifatida yuboramiz
+        if audio_url:
+            try:
+                bot.send_audio(message.chat.id, audio_url, caption="🎵 Topilgan musiqa/audio!")
+                sent_anything = True
+            except:
+                pass
+
+        # 2. Agar video havolasi topilsa, videoni yuboramiz
+        if video_url:
+            try:
+                bot.send_video(message.chat.id, video_url, caption="✅ Marhamat, video!")
+                sent_anything = True
+                
+                # Agar alohida audio topilmagan bo'lsa, lekin video bo'lsa, videoning o'zidan audio yasab yuborishga urinamiz
+                if not audio_url:
+                    try:
+                        bot.send_audio(message.chat.id, video_url, caption="🎵 Videodan ajratilgan audio!")
+                    except:
+                        pass
+            except:
+                pass
+
+        if sent_anything:
+            bot.delete_message(message.chat.id, msg.message_id)
+            return
+
+        bot.edit_message_text(
+            "❌ Afsuski, bu havoladan media topib bo'lmadi. Boshqa havola sinab ko'ring.",
+            chat_id=message.chat.id,
+            message_id=msg.message_id
+        )
 
     except Exception as e:
         bot.edit_message_text(
-            "❌ Боргирӣ карда нашуд. Эҳтимол ҳаҷми файл калон аст ё истинод хатост.",
+            "❌ Xatolik yuz berdi. Iltimos, birozdan keyin qayta urinib ko'ring.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
@@ -76,7 +101,7 @@ if __name__ == "__main__":
     if RENDER_URL:
         bot.remove_webhook()
         bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
-        print("🔗 Webhook фаъол шуд!")
+        print("🔗 Webhook muvaffaqiyatli ulandi!")
 
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
