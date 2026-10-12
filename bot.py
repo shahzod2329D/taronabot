@@ -14,7 +14,7 @@ app = Flask(__name__)
 def home():
     return "Bot is running!"
 
-# Каналга обуна бўлганини текшириш функцияси
+# Санҷиши обуна ба канал
 def is_subscribed(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -45,8 +45,8 @@ def send_welcome(message):
 
     welcome_text = (
         "🎵 Хуш омадед ба боти тарона ва медиа!\n\n"
-        "🔗 Ба ман линки видео аз YouTube, TikTok ё Instagram фиристед. "
-        "Ман медиаро мекашам ва ба шумо мефиристам!"
+        "🔗 Ба ман истинод (ссылка) аз YouTube, TikTok ё Instagram фиристед. "
+        "Ман видео ё аудиои онро мекашам ва ба шумо мефиристам!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -57,7 +57,7 @@ def callback_check(call):
         bot.answer_callback_query(call.id, "Ташаккур, обуна тасдиқ шуд! ✅")
         bot.edit_message_text(
             "🎉 Обунаи шумо бо муваффақият тасдиқ шуд!\n\n"
-            "Линки видеои худро аз YouTube, TikTok ё Instagram фиристед:",
+            "Истиноди видео ё суруди худро фиристед:",
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
@@ -74,17 +74,17 @@ def handle_link(message):
 
     url = message.text.strip()
     if not ("http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url or "instagram.com" in url):
-        bot.reply_to(message, "⚠️ Лутфан линки дурусти видеоро фиристед (YouTube, TikTok ё Instagram).")
+        bot.reply_to(message, "⚠️ Лутфан истиноди дуруст фиристед (YouTube, TikTok ё Instagram).")
         return
 
-    msg = bot.reply_to(message, "⏳ Видео боргирӣ шуда истодааст, лутфан интизор шавед...")
+    msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        # yt-dlp орқали видеони юклаб олиш созламалари
         ydl_opts = {
             'format': 'best',
             'outtmpl': 'downloads/%(id)s.%(ext)s',
-            'max_filesize': 50 * 1024 * 1024, # 50MB лимит (Telegram ботлар учун)
+            'max_filesize': 50 * 1024 * 1024,
+            'noplaylist': True,
         }
 
         os.makedirs("downloads", exist_ok=True)
@@ -92,20 +92,25 @@ def handle_link(message):
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             file_path = ydl.prepare_filename(info)
+            
+            # Агар файл аудио бошад ё формат аудио табдил ёфта бошад
+            ext = info.get('ext', '')
 
-        # Видео файлни Telegram'га жўнатиш
-        with open(file_path, 'rb') as video_file:
-            bot.send_video(message.chat.id, video_file, caption="✅ Марҳамат, видеои шумо!")
+        # Фиристодани файл вобаста ба намуди он
+        with open(file_path, 'rb') as f:
+            if ext in ['mp3', 'm4a', 'wav', 'aac']:
+                bot.send_audio(message.chat.id, f, caption="✅ Марҳамат, суруди шумо!")
+            else:
+                bot.send_video(message.chat.id, f, caption="✅ Марҳамат, видеои шумо!")
 
         bot.delete_message(message.chat.id, msg.message_id)
 
-        # Юклаб бўлингандан кейин файлни ўчириб ташлаш (память тўлиб қолмаслиги учун)
         if os.path.exists(file_path):
             os.remove(file_path)
 
     except Exception as e:
         bot.edit_message_text(
-            f"❌ Видеоро юклаб олиб نشд. Хатогӣ: Ҳаҷми файл калон ё линк нодуруст аст.",
+            f"❌ Боргирӣ карда нашуд. Эҳтимол истинод хато аст ё ҳаҷми файл калон аст.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
