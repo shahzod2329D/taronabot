@@ -1,17 +1,24 @@
 import os
 import telebot
-from telebot import types
 from flask import Flask, request
 import requests
 
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(TOKEN, threaded=False)
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot is running perfectly!"
+
+# Вебхук орқали хабарларни қабул қилиш (409 конфликтни юз фоиз йўқотади)
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return "!", 200
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -41,11 +48,11 @@ def handle_link(message):
             video_url = result.get("download_url") or result.get("video") or result.get("link")
             audio_url = result.get("audio") or result.get("music")
             
-            # Агар видео мавжуд бўлса, уни юборамиз
+            # Агар видео мавжуд бўлса
             if video_url:
                 bot.send_video(message.chat.id, video_url, caption="✅ Видеои шумо!")
 
-            # Агар алоҳида аудио ёки мусиқа линки мавжуд бўлса, уни ҳам қўшиб юборамиз
+            # Агар аудио ёки мусиқа мавжуд бўлса
             if audio_url:
                 bot.send_audio(message.chat.id, audio_url, caption="🎵 Аудио/Мусиқаи шумо!")
 
@@ -67,10 +74,12 @@ def handle_link(message):
         )
 
 if __name__ == "__main__":
+    # Render URL орқали вебхукни автоматик улаймиз
+    RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
+    if RENDER_URL:
+        bot.remove_webhook()
+        bot.set_webhook(url=f"{RENDER_URL}/{TOKEN}")
+        print("🔗 Webhook фаъол шуд!")
+
     port = int(os.environ.get("PORT", 10000))
-    print("🎵 Бот ба кор даромад...")
-    
-    import threading
-    threading.Thread(target=bot.infinity_polling, daemon=True).start()
-    
     app.run(host="0.0.0.0", port=port)
