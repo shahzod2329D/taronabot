@@ -2,7 +2,7 @@ import os
 import telebot
 from telebot import types
 from flask import Flask, request
-import requests
+import yt_dlp
 
 TOKEN = "8885376330:AAH72wW6JfFdpW3OgU6tQuzPvglb_xhe0a8"
 CHANNEL_USERNAME = "@Kitobhoi_elektroni"
@@ -14,7 +14,6 @@ app = Flask(__name__)
 def home():
     return "Bot is running!"
 
-# Санҷиши обуна ба канал
 def is_subscribed(user_id):
     try:
         member = bot.get_chat_member(CHANNEL_USERNAME, user_id)
@@ -45,8 +44,8 @@ def send_welcome(message):
 
     welcome_text = (
         "🎵 Хуш омадед ба боти тарона ва медиа!\n\n"
-        "🔗 Ба ман истинод (ссылка) аз YouTube, TikTok ё Instagram фиристед. "
-        "Ман видео ё аудиои онро мекашам ва ба шумо мефиристам!"
+        "🔗 Ба ман истинод аз YouTube ё TikTok фиристед. "
+        "Ман видеои онро мекашам ва ба шумо мефиристам!"
     )
     bot.reply_to(message, welcome_text)
 
@@ -57,7 +56,7 @@ def callback_check(call):
         bot.answer_callback_query(call.id, "Ташаккур, обуна тасдиқ шуд! ✅")
         bot.edit_message_text(
             "🎉 Обунаи шумо бо муваффақият тасдиқ шуд!\n\n"
-            "Истиноди видео ё суруди худро фиристед:",
+            "Истиноди видеои худро фиристед:",
             chat_id=call.message.chat.id,
             message_id=call.message.message_id
         )
@@ -73,37 +72,37 @@ def handle_link(message):
         return
 
     url = message.text.strip()
-    if not ("http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url or "instagram.com" in url):
-        bot.reply_to(message, "⚠️ Лутфан истиноди дуруст фиристед (YouTube, TikTok ё Instagram).")
+    if not ("http" in url or "youtube.com" in url or "youtu.be" in url or "tiktok.com" in url):
+        bot.reply_to(message, "⚠️ Лутфан истиноди дурусти YouTube ё TikTok фиристед.")
         return
 
     msg = bot.reply_to(message, "⏳ Боргирӣ истодааст, лутфан интизор шавед...")
 
     try:
-        # Истифодаи API муқобил ва барқарорро иҷро мекунем
-        api_url = f"https://kaiz-apis.gleeze.com/api/downloader?url={url}"
-        response = requests.get(api_url, timeout=30)
-        data = response.json()
+        ydl_opts = {
+            'format': 'best',
+            'outtmpl': 'downloads/%(id)s.%(ext)s',
+            'max_filesize': 50 * 1024 * 1024,
+            'noplaylist': True,
+        }
 
-        video_url = None
-        if "data" in data:
-            video_url = data["data"].get("downloadUrl") or data["data"].get("url")
-        elif "result" in data:
-            video_url = data["result"].get("url") or data["result"].get("download")
+        os.makedirs("downloads", exist_ok=True)
 
-        if video_url:
-            bot.send_video(message.chat.id, video_url, caption="✅ Марҳамат, видеои шумо!")
-            bot.delete_message(message.chat.id, msg.message_id)
-        else:
-            bot.edit_message_text(
-                "❌ Истинод боргирӣ нашуд. Лутфан истиноди дигар ё TikTok/YouTube санҷед.",
-                chat_id=message.chat.id,
-                message_id=msg.message_id
-            )
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            file_path = ydl.prepare_filename(info)
+
+        with open(file_path, 'rb') as video_file:
+            bot.send_video(message.chat.id, video_file, caption="✅ Марҳамат, видеои шумо!")
+
+        bot.delete_message(message.chat.id, msg.message_id)
+
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
     except Exception as e:
         bot.edit_message_text(
-            "❌ Хатогӣ рух дод. Лутфан баъдтар бори дигар кӯшиш кунед.",
+            "❌ Боргирӣ карда нашуд. Эҳтимол ҳаҷми видео калон аст ё истинод хатост.",
             chat_id=message.chat.id,
             message_id=msg.message_id
         )
